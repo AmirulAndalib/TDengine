@@ -2111,15 +2111,14 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   return TSDB_CODE_SUCCESS;
 }
 
-// use diff type to distinguish _low and _high
-static int32_t translateForecastConfidenceLow(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_FLOAT].bytes, .type = TSDB_DATA_TYPE_FLOAT};
+static int32_t translateForecastConf(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateForecastConfidenceHigh(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
-  return TSDB_CODE_SUCCESS;
+bool getForecastConfEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(double);
+  return true;
 }
 
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -3682,9 +3681,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_flow",
     .type = FUNCTION_TYPE_FORECAST_LOW,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
-    .translateFunc = translateForecastConfidenceLow,
-    .getEnvFunc   = NULL,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateForecastConf,
+    .getEnvFunc   = getForecastConfEnv,
     .initFunc     = NULL,
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
@@ -3692,9 +3691,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_fhigh",
     .type = FUNCTION_TYPE_FORECAST_HIGH,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
-    .translateFunc = translateForecastConfidenceHigh,
-    .getEnvFunc   = NULL,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .translateFunc = translateForecastConf,
+    .getEnvFunc   = getForecastConfEnv,
     .initFunc     = NULL,
     .sprocessFunc = NULL,
     .finalizeFunc = NULL

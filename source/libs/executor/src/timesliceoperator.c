@@ -171,7 +171,8 @@ static FORCE_INLINE int32_t timeSliceEnsureBlockCapacity(STimeSliceOperatorInfo*
 
 static bool isIrowtsPseudoColumn(SExprInfo* pExprInfo) {
   char* name = pExprInfo->pExpr->_function.functionName;
-  return (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type) && strcasecmp(name, "_irowts") == 0);
+  return (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type) && strcasecmp(name, "_irowts") == 0) ||
+         (strcasecmp(name, "_flow") == 0) || (strcasecmp(name, "_fhigh") == 0);
 }
 
 static bool isIsfilledPseudoColumn(SExprInfo* pExprInfo) {
@@ -505,7 +506,12 @@ static int32_t addCurrentRowToResult(STimeSliceOperatorInfo* pSliceInfo, SExprSu
     SColumnInfoData* pDst = taosArrayGet(pResBlock->pDataBlock, dstSlot);
 
     if (isIrowtsPseudoColumn(pExprInfo)) {
-      code = colDataSetVal(pDst, pResBlock->info.rows, (char*)&pSliceInfo->current, false);
+      if (dstSlot == 0) {
+        double a = 12;
+        code = colDataSetVal(pDst, pResBlock->info.rows, (char*)&a, false);
+      } else {
+        code = colDataSetVal(pDst, pResBlock->info.rows, (char*)&pSliceInfo->current, false);
+      }
       QUERY_CHECK_CODE(code, lino, _end);
     } else if (isIsfilledPseudoColumn(pExprInfo)) {
       bool isFilled = false;
@@ -990,98 +996,121 @@ static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 }
 
 static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  int32_t        code = TSDB_CODE_SUCCESS;
-  int32_t        lino = 0;
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
-  if (pOperator->status == OP_EXEC_DONE) {
-    (*ppRes) = NULL;
-    return code;
-  }
-
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
+  SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
   STimeSliceOperatorInfo* pSliceInfo = pOperator->info;
-  SSDataBlock*            pResBlock = pSliceInfo->pRes;
+  // SOptrBasicInfo*         pBInfo = &pSliceInfo->binfo;
+  SSDataBlock*            pRes = pSliceInfo->pRes;
 
-  blockDataCleanup(pResBlock);
+  // int32_t      code = TSDB_CODE_SUCCESS;
+  // int32_t      lino = 0;
+  SExprSupp*   pExprSup = &pOperator->exprSupp;
+  SSDataBlock* pResBlock = pRes;
+  int32_t      index;
+
+  blockDataCleanup(pRes);
 
   while (1) {
-    if (pSliceInfo->pNextGroupRes != NULL) {
-      doHandleTimeslice(pOperator, pSliceInfo->pNextGroupRes);
-      if (checkWindowBoundReached(pSliceInfo) || checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
-        code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
-        QUERY_CHECK_CODE(code, lino, _finished);
-        if (pSliceInfo->pRemainRes == NULL) {
-          pSliceInfo->pNextGroupRes = NULL;
+    SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
+    if (pBlock == NULL) {
+      break;
+    }
+
+    // doHandleTimeslice(pOperator, pBlock);
+    code = timeSliceEnsureBlockCapacity(pSliceInfo, pResBlock);
+    uInfo("===> block:%p rows:%" PRId64, pBlock, pBlock->info.rows);
+
+          for (int32_t j = 0; j < pBlock->info.rows; ++j) {
+        SColumnInfoData* pValCol = taosArrayGet(pBlock->pDataBlock, 0);
+        if (pValCol == NULL) break;
+        SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 1);
+        if (pTsCol == NULL) break;
+
+        int64_t ts = ((TSKEY*)pTsCol->pData)[j];
+        char*   val = colDataGetData(pValCol, j);
+        int16_t valType = pValCol->info.type;
+
+        switch (valType) {
+          case TSDB_DATA_TYPE_BOOL:
+            uInfo("%" PRId64 ",%d", ts, (*((int8_t*)val) == 1) ? 1 : 0);
+            break;
+          case TSDB_DATA_TYPE_TINYINT:
+            uInfo("%" PRId64 ",%d", ts, *(int8_t*)val);
+            break;
+          case TSDB_DATA_TYPE_UTINYINT:
+            uInfo("%" PRId64 ",%u", ts, *(uint8_t*)val);
+            break;
+          case TSDB_DATA_TYPE_SMALLINT:
+            uInfo("%" PRId64 ",%d", ts, *(int16_t*)val);
+            break;
+          case TSDB_DATA_TYPE_USMALLINT:
+            uInfo("%" PRId64 ",%u", ts, *(uint16_t*)val);
+            break;
+          case TSDB_DATA_TYPE_INT:
+            uInfo("%" PRId64 ",%d", ts, *(int32_t*)val);
+            break;
+          case TSDB_DATA_TYPE_UINT:
+            uInfo("%" PRId64 ",%u", ts, *(uint32_t*)val);
+            break;
+          case TSDB_DATA_TYPE_BIGINT:
+            uInfo("%" PRId64 ",%" PRId64, ts, *(int64_t*)val);
+            break;
+          case TSDB_DATA_TYPE_UBIGINT:
+            uInfo("%" PRId64 ",%" PRIu64, ts, *(uint64_t*)val);
+            break;
+          case TSDB_DATA_TYPE_FLOAT:
+            uInfo("%" PRId64 ",%f", ts, GET_FLOAT_VAL(val));
+            break;
+          case TSDB_DATA_TYPE_DOUBLE:
+            uInfo("%" PRId64 ",%f", ts, GET_DOUBLE_VAL(val));
+            break;
         }
-        if (pResBlock->info.rows != 0) {
-          goto _finished;
+      }
+
+      
+
+    for (int32_t j = 0; j < pExprSup->numOfExprs; ++j) {
+      SExprInfo* pExprInfo = &pExprSup->pExprInfo[j];
+
+      int32_t          dstSlot = pExprInfo->base.resSchema.slotId;
+      SColumnInfoData* pDst = taosArrayGet(pResBlock->pDataBlock, dstSlot);
+
+      if (isIrowtsPseudoColumn(pExprInfo)) {
+        if (dstSlot == 0) {
+          double a = 12;
+          code = colDataSetVal(pDst, pResBlock->info.rows, (char*)&a, false);
         } else {
-          // after fillter if result block has 0 rows, go back to
-          // process pNextGroupRes again for unfinished data
-          continue;
+          code = colDataSetVal(pDst, pResBlock->info.rows, (char*)&pSliceInfo->current, false);
         }
-      }
-      pSliceInfo->pNextGroupRes = NULL;
-    }
-
-    while (1) {
-      SSDataBlock* pBlock = pSliceInfo->pRemainRes ? pSliceInfo->pRemainRes : getNextBlockFromDownstream(pOperator, 0);
-      if (pBlock == NULL) {
-        setOperatorCompleted(pOperator);
-        break;
-      }
-
-      pResBlock->info.scanFlag = pBlock->info.scanFlag;
-      if (pSliceInfo->groupId == 0 && pBlock->info.id.groupId != 0) {
-        pSliceInfo->groupId = pBlock->info.id.groupId;
-      } else {
-        if (pSliceInfo->groupId != pBlock->info.id.groupId) {
-          pSliceInfo->groupId = pBlock->info.id.groupId;
-          pSliceInfo->pNextGroupRes = pBlock;
-          break;
-        }
-      }
-
-      doHandleTimeslice(pOperator, pBlock);
-      if (checkWindowBoundReached(pSliceInfo) || checkThresholdReached(pSliceInfo, pOperator->resultInfo.threshold)) {
-        code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
         QUERY_CHECK_CODE(code, lino, _finished);
-        if (pResBlock->info.rows != 0) {
-          goto _finished;
-        }
+      } else if (isIsfilledPseudoColumn(pExprInfo)) {
+        bool isFilled = false;
+        code = colDataSetVal(pDst, pResBlock->info.rows, (char*)&isFilled, false);
+        QUERY_CHECK_CODE(code, lino, _finished);
+      } else {
+        int32_t v  = 13;
+        code = colDataSetVal(pDst, pResBlock->info.rows, (const char*)&v, false);
+        QUERY_CHECK_CODE(code, lino, _finished);
       }
     }
-    // post work for a specific group
 
-    // check if need to interpolate after last datablock
-    // except for fill(next), fill(linear)
-    genInterpAfterDataBlock(pSliceInfo, pOperator, 0);
+    pResBlock->info.rows += 1;
 
-    code = doFilter(pResBlock, pOperator->exprSupp.pFilterInfo, NULL);
-    QUERY_CHECK_CODE(code, lino, _finished);
-    if (pOperator->status == OP_EXEC_DONE) {
-      break;
-    }
-
-    // restore initial value for next group
-    resetTimesliceInfo(pSliceInfo);
-    if (pResBlock->info.rows != 0) {
-      break;
+    if (pRes->info.rows > 0) {
+      (*ppRes) = pRes;
+      qInfo("group:%" PRId64 ", return to upstream,", pRes->info.id.groupId);
+      return code;
     }
   }
 
 _finished:
-  // restore the value
-  setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
-  if (pResBlock->info.rows == 0) {
-    pOperator->status = OP_EXEC_DONE;
-  }
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }
-
-  (*ppRes) = pResBlock->info.rows == 0 ? NULL : pResBlock;
+  (*ppRes) = (pRes->info.rows == 0) ? NULL : pRes;
   return code;
 }
 
