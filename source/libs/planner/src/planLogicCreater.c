@@ -944,20 +944,26 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
     code = rewriteExprsForSelect(pInterpFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pFill) {
-    SFillNode* pFill = (SFillNode*)pSelect->pFill;
-    pInterpFunc->timeRange = pFill->timeRange;
-    pInterpFunc->fillMode = pFill->mode;
-    pInterpFunc->pTimeSeries = NULL;
-    code = nodesCloneNode(pFill->pWStartTs, &pInterpFunc->pTimeSeries);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = nodesCloneNode(pFill->pValues, &pInterpFunc->pFillValues);
-    }
-  }
+  // code = nodesCloneNode(pSelect->pInterp, &pInterpFunc->pTimeSeries);
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pEvery) {
-    pInterpFunc->interval = ((SValueNode*)pSelect->pEvery)->datum.i;
-  }
+  pInterpFunc->timeRange.skey = 100;
+   pInterpFunc->timeRange.skey = 200;
+    
+  // return 0;
+  // if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pFill) {
+  //   SFillNode* pFill = (SFillNode*)pSelect->pFill;
+  //   pInterpFunc->timeRange = pFill->timeRange;
+  //   pInterpFunc->fillMode = pFill->mode;
+  //   pInterpFunc->pTimeSeries = NULL;
+  //   code = nodesCloneNode(pFill->pWStartTs, &pInterpFunc->pTimeSeries);
+  //   if (TSDB_CODE_SUCCESS == code) {
+  //     code = nodesCloneNode(pFill->pValues, &pInterpFunc->pFillValues);
+  //   }
+  // }
+
+  // if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pEvery) {
+  //   pInterpFunc->interval = ((SValueNode*)pSelect->pEvery)->datum.i;
+  // }
 
   // set the output
   if (TSDB_CODE_SUCCESS == code) {

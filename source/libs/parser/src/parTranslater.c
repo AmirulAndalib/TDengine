@@ -6045,15 +6045,15 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = translateExpr(pCxt, &pSelect->pFill);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = getQueryTimeRange(pCxt, pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange));
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = checkFillValues(pCxt, (SFillNode*)pSelect->pFill, pSelect->pProjectionList);
-  }
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = getQueryTimeRange(pCxt, pSelect->pRange, &(((SFillNode*)pSelect->pFill)->timeRange));
+  // }
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = checkFill(pCxt, (SFillNode*)pSelect->pFill, (SValueNode*)pSelect->pEvery, true);
+  // }
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = checkFillValues(pCxt, (SFillNode*)pSelect->pFill, pSelect->pProjectionList);
+  // }
 
   return code;
 }
@@ -6087,14 +6087,21 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
     }
   }
 
-  int32_t code = translateExpr(pCxt, &pSelect->pRange);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateInterpEvery(pCxt, &pSelect->pEvery);
-  }
+  int32_t code = 0;
+
+  // int32_t code = translateExpr(pCxt, &pSelect->pRange);
+  // if (TSDB_CODE_SUCCESS == code) {
+  //   code = translateInterpEvery(pCxt, &pSelect->pEvery);
+  // }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpFill(pCxt, pSelect);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateExpr(pCxt, &pSelect->pInterp);
+  }
+
   return code;
+  // return 0;
 }
 
 static int32_t removeConstantValueFromList(SNodeList** pList) {

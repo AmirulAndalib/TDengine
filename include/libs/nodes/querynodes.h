@@ -424,6 +424,7 @@ typedef struct SSelectStmt {
   SNode*        pRange;
   SNode*        pEvery;
   SNode*        pFill;
+  SNode*        pInterp;
   SNodeList*    pOrderByList;  // SOrderByExprNode
   SLimitNode*   pLimit;
   SLimitNode*   pSlimit;

@@ -101,9 +101,9 @@ static int32_t doTimesliceNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     uInfo("===> block:%p rows:%" PRId64, pBlock, pBlock->info.rows);
 
     for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-      SColumnInfoData* pValCol = taosArrayGet(pBlock->pDataBlock, 0);
+      SColumnInfoData* pValCol = taosArrayGet(pBlock->pDataBlock, 1);
       if (pValCol == NULL) break;
-      SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 1);
+      SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 0);
       if (pTsCol == NULL) break;
 
       int64_t ts = ((TSKEY*)pTsCol->pData)[j];
@@ -193,16 +193,32 @@ _finished:
 
 static int32_t extractPkColumnFromFuncs(SNodeList* pFuncs, bool* pHasPk, SColumn* pPkColumn) {
   SNode* pNode;
+  int32_t code = 0;
   FOREACH(pNode, pFuncs) {
     if ((nodeType(pNode) == QUERY_NODE_TARGET) && (nodeType(((STargetNode*)pNode)->pExpr) == QUERY_NODE_FUNCTION)) {
       SFunctionNode* pFunc = (SFunctionNode*)((STargetNode*)pNode)->pExpr;
-      if (fmIsInterpFunc(pFunc->funcId) && pFunc->hasPk) {
-        SNode* pNode2 = (pFunc->pParameterList->pTail->pNode);
-        if ((nodeType(pNode2) == QUERY_NODE_COLUMN) && ((SColumnNode*)pNode2)->isPk) {
-          *pHasPk = true;
-          *pPkColumn = extractColumnFromColumnNode((SColumnNode*)pNode2);
-          break;
+      int32_t        numOfParam = LIST_LENGTH(pFunc->pParameterList);
+      for (int32_t j = 0; j < numOfParam; ++j) {
+        SNode* p1 = nodesListGetNode(pFunc->pParameterList, j);
+        if (p1->type == QUERY_NODE_COLUMN) {
+          SColumnNode* pcn = (SColumnNode*)p1;
+
+          code = 0;
+        } else if (p1->type == QUERY_NODE_VALUE) {
+          SValueNode* pvn = (SValueNode*)p1;
+          // pExp->base.pParam[j].type = FUNC_PARAM_TYPE_VALUE;
+          // code = nodesValueNodeToVariant(pvn, &pExp->base.pParam[j].param);
+          code = 0;
         }
+
+        // if (fmIsInterpFunc(pFunc->funcId) && pFunc->hasPk) {
+        //   SNode* pNode2 = (pFunc->pParameterList->pTail->pNode);
+        //   if ((nodeType(pNode2) == QUERY_NODE_COLUMN) && ((SColumnNode*)pNode2)->isPk) {
+        //     *pHasPk = true;
+        //     *pPkColumn = extractColumnFromColumnNode((SColumnNode*)pNode2);
+        //     break;
+        //   }
+        // }
       }
     }
   }
@@ -247,7 +263,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   code = filterInitFromNode((SNode*)pInterpPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  pInfo->tsCol = extractColumnFromColumnNode((SColumnNode*)pInterpPhyNode->pTimeSeries);
+  // pInfo->tsCol = extractColumnFromColumnNode((SColumnNode*)pInterpPhyNode->pTimeSeries);
   code = extractPkColumnFromFuncs(pInterpPhyNode->pFuncs, &pInfo->hasPk, &pInfo->pkCol);
   QUERY_CHECK_CODE(code, lino, _error);
 
@@ -260,6 +276,10 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyN
   pInfo->pLinearInfo = NULL;
   pInfo->pRes = createDataBlockFromDescNode(pPhyNode->pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
+
+  pInterpPhyNode->timeRange.skey = 0;
+  pInterpPhyNode->timeRange.ekey = 1677808088000;
+  
   pInfo->win = pInterpPhyNode->timeRange;
   pInfo->interval.interval = pInterpPhyNode->interval;
   pInfo->current = pInfo->win.skey;

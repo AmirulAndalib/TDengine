@@ -1005,7 +1005,7 @@ _err:
   return NULL;
 }
 
-static SNode* createPrimaryKeyCol(SAstCreateContext* pCxt, const SToken* pFuncName) {
+SNode* createPrimaryKeyCol(SAstCreateContext* pCxt, const SToken* pFuncName) {
   CHECK_PARSER_STATUS(pCxt);
   SColumnNode* pCol = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
@@ -1027,6 +1027,11 @@ SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNod
   if (0 == strncasecmp("_rowts", pFuncName->z, pFuncName->n) || 0 == strncasecmp("_c0", pFuncName->z, pFuncName->n)) {
     return createPrimaryKeyCol(pCxt, pFuncName);
   }
+
+  // if  (0 == strncasecmp("interp", pFuncName->z, pFuncName->n)){
+  //   pSelect->pInterp = createPrimaryKeyCol(pCxt, pFuncName);;
+  // }
+
   SFunctionNode* func = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
   CHECK_MAKE_NODE(func);
@@ -1653,6 +1658,7 @@ SNode* addFillClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pFill) {
     pFillClause->pWStartTs = createPrimaryKeyCol(pCxt, NULL);
     CHECK_MAKE_NODE(pFillClause->pWStartTs);
     ((SSelectStmt*)pStmt)->pFill = (SNode*)pFillClause;
+    // ((SSelectStmt*)pStmt)->pInterp = (SNode*)createPrimaryKeyCol(pCxt, NULL);;
   }
   return pStmt;
 _err:
