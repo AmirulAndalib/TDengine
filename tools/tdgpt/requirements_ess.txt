@@ -1,10 +1,10 @@
 -r requirements_docker.txt
 
-transformers==4.40.1
+transformers==5.10.1
 
 --find-links https://download.pytorch.org/whl/torch/
 # x86/x64平台
-torch==2.4.1+cpu ; platform_machine == "x86_64"
+torch==2.13.0 ; platform_machine == "x86_64"
 # ARM平台 (aarch64)
 torch==2.4.1 ; platform_machine == "aarch64"
 
@@ -12,8 +12,8 @@ torch==2.4.1 ; platform_machine == "aarch64"
 h5py>=3.10,<3.13
 keras==3.15.0
 gluonts==0.17.0
-lightning==2.5.6
-accelerate==0.34.2
+lightning==2.6.6
+accelerate==1.15.0
 
 # install using --no-deps option to avoid depends on numba and llvmlite library
 pyod==2.0.5
